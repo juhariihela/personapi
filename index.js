@@ -1,3 +1,4 @@
+require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
 const bodyParser = require('body-parser')
@@ -13,23 +14,23 @@ morgan.token('body', function (req, res) { return JSON.stringify(req.body) });
 var loggerFormat = ':method :url :status :res[content-length] - :response-time ms :body';
 app.use(morgan(loggerFormat))
 
-const formatPhone = (phone) => {
+/*const formatPhone = (phone) => {
     return {
         name: phone.name,
         phone: phone.phone,
         id: phone.id
     }
-}
+}*/
 
-app.get('/api/', (request, response) => {
+app.get('/api/', (request, response, next) => {
     res.send('<h1>Phones API!</h1>')
 })
 
-app.get('/api/persons', (request, response) => {
+app.get('/api/persons', (request, response, next) => {
     Phone
         .find({})
         .then(phones => {
-            response.json(phones.map(formatPhone))
+            response.json(phones.map(phone => phone.toJSON()))
         })
         .catch(error => {
             console.log(error)
@@ -37,12 +38,12 @@ app.get('/api/persons', (request, response) => {
         })
 })
 
-app.get('/api/persons/:id', (request, response) => {
+app.get('/api/persons/:id', (request, response, next) => {
     Phone
         .findById(request.params.id)
         .then(phone => {
             if (phone) {
-                response.json(formatPhone(phone))
+                response.json(phone.toJSON())
             } else {
                 response.status(404).end()
             }
@@ -53,7 +54,7 @@ app.get('/api/persons/:id', (request, response) => {
         })
 })
 
-app.delete('/api/persons/:id', (request, response) => {
+app.delete('/api/persons/:id', (request, response, next) => {
     Phone
         .findOneAndRemove({ _id: request.params.id })
         .then(result => {
@@ -65,7 +66,7 @@ app.delete('/api/persons/:id', (request, response) => {
         })
 })
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
     const body = request.body
 
     if (body.name === undefined || body.phone === undefined) {
@@ -88,19 +89,15 @@ app.post('/api/persons', (request, response) => {
 
                 phone
                     .save()
-                    .then(formatPhone)
-                    .then(formattedPhone => {
-                        response.json(formattedPhone)
+                    .then(savedPhone => {
+                        response.json(savedPhone.toJSON())
                     })
-                    .catch(error => {
-                        console.log(error)
-                        response.status(400).send({ error: "error in save" })
-                    })
+                    .catch(error => next(error))
             }
         })
 })
 
-app.put('/api/persons/:id', (request, response) => {
+app.put('/api/persons/:id', (request, response, next) => {
     const body = request.body
 
     if (body.name === undefined || body.phone === undefined) {
@@ -115,21 +112,32 @@ app.put('/api/persons/:id', (request, response) => {
 
     Phone
         .findOneAndUpdate({ _id: request.params.id }, phone, { new: true })
-        .then(formatPhone)
         .then(formattedPhone => {
-            response.json(formattedPhone)
+            response.json(formattedPhone.toJSON())
         })
-        .catch(error => {
-            console.log(error)
-            response.status(400).send({error: "malformatted id"})
-        })
+        .catch(error => next(error))
 })
 
-const error = (request, response) => {
+const unknowEndpoint = (request, response) => {
     response.status(404).send({error: 'unknow endpoint'})
 }
 
-app.use(error)
+app.use(unknowEndpoint)
+
+const errorHandler = (error, request, response, next) => {
+    console.log('errorName', error.name)
+    console.log('errorMessage', error.message)
+
+    if (error.name === "CastError" && error.kind == "ObjectId") {
+        return response.status(400).send({ error: 'malformatted id' })
+    } else if (error.name === "ValidationError") {
+        return response.status(400).json({ error: error.message })
+    }
+
+    next(error)
+}
+
+app.use(errorHandler)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
