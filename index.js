@@ -70,7 +70,7 @@ app.post('/api/persons', (request, response, next) => {
     const body = request.body
 
     if (body.name === undefined || body.phone === undefined) {
-        return response.status(400).json({error: 'name or phone missing'})
+        return response.status(400).json({ error: 'name or phone missing' })
     }
 
     // tarkista onko olemassa jo
@@ -104,11 +104,20 @@ app.put('/api/persons/:id', (request, response, next) => {
         return response.status(400).json({ error: 'name or phone missing' })
     }
 
-    const phone = {
+    /*const phone = {
         name: body.name,
         phone: body.phone
     }
     console.log(phone)
+    */
+    const phone = new Phone({
+        name: body.name,
+        phone: body.phone
+    })
+    let error = phone.validateSync()
+    if (error) {
+        return response.status(400).json({ error: error.message, name: 'ValidationError' })
+    }
 
     Phone
         .findOneAndUpdate({ _id: request.params.id }, phone, { new: true })
@@ -119,7 +128,7 @@ app.put('/api/persons/:id', (request, response, next) => {
 })
 
 const unknowEndpoint = (request, response) => {
-    response.status(404).send({error: 'unknow endpoint'})
+    response.status(404).send({ error: 'unknow endpoint' })
 }
 
 app.use(unknowEndpoint)
@@ -128,7 +137,7 @@ const errorHandler = (error, request, response, next) => {
     console.log('errorName', error.name)
     console.log('errorMessage', error.message)
 
-    if (error.name === "CastError" && error.kind == "ObjectId") {
+    if (error.name === "CastError" && error.kind === "ObjectId") {
         return response.status(400).send({ error: 'malformatted id' })
     } else if (error.name === "ValidationError") {
         return response.status(400).json({ error: error.message })
